@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Primizie Freight & Price Calculator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; padding: 20px; }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { text-align: center; margin-bottom: 4px; font-size: 26px; color: #1a1a2e; }
+  .subtitle { text-align: center; color: #666; margin-bottom: 24px; font-size: 13px; }
+
+  .card { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card h2 { font-size: 17px; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e8e8e8; }
+
+  /* Step 1: CSV Upload & Vendor Config */
+  .upload-area { border: 2px dashed #ccc; border-radius: 10px; padding: 40px; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; margin-bottom: 16px; }
+  .upload-area:hover, .upload-area.dragover { border-color: #4a6cf7; background: #f7f8fc; }
+  .upload-area input { display: none; }
+  .upload-area p { color: #888; font-size: 14px; margin-top: 8px; }
+
+  .vendor-config { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; align-items: end; margin-bottom: 8px; padding: 12px; background: #f7f8fc; border-radius: 8px; }
+  .vendor-config label { font-size: 12px; font-weight: 600; color: #555; display: flex; flex-direction: column; }
+  .vendor-config input { margin-top: 4px; padding: 8px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 13px; }
+  .vendor-config input:focus { outline: none; border-color: #4a6cf7; }
+  .vendor-config .vendor-name { font-weight: 700; font-size: 14px; color: #1a1a2e; padding: 8px 0; }
+
+  .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: #4a6cf7; color: #fff; }
+  .btn-primary:hover { background: #3a5ce5; }
+  .btn-success { background: #52c41a; color: #fff; }
+  .btn-success:hover { background: #45a818; }
+  .btn-warning { background: #fa8c16; color: #fff; }
+  .btn-warning:hover { background: #d87a10; }
+  .btn-danger { background: #ff4d4f; color: #fff; }
+  .btn-danger:hover { background: #d9363e; }
+  .btn-outline { background: #fff; color: #4a6cf7; border: 1.5px solid #4a6cf7; }
+  .btn-outline:hover { background: #f7f8fc; }
+
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+
+  /* Tabs for vendors */
+  .vendor-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .vendor-tab { padding: 8px 16px; border: 1.5px solid #ddd; border-radius: 8px 8px 0 0; background: #f7f8fc; cursor: pointer; font-size: 13px; font-weight: 600; color: #555; transition: all 0.2s; }
+  .vendor-tab.active { background: #fff; border-bottom-color: #fff; color: #4a6cf7; border-color: #4a6cf7; border-bottom-color: #fff; }
+  .vendor-tab:hover { color: #4a6cf7; }
+  .vendor-tab .count { background: #e8e8e8; color: #666; padding: 1px 7px; border-radius: 10px; font-size: 11px; margin-left: 6px; }
+  .vendor-tab.active .count { background: #4a6cf7; color: #fff; }
+
+  /* Results table */
+  .table-wrapper { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #f7f8fc; padding: 10px 8px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; border-bottom: 2px solid #e8e8e8; white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+  tbody td { padding: 8px; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+  tbody tr:hover { background: #fafbff; }
+  tbody tr.selected { background: #e6f7e6; }
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+  .price-up { color: #52c41a; font-weight: 600; }
+  .price-down { color: #ff4d4f; font-weight: 600; }
+  .price-same { color: #888; }
+  .new-price { font-weight: 700; color: #1a1a2e; }
+  .old-price { color: #999; }
+
+  /* Checkbox styling */
+  input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #4a6cf7; }
+
+  /* Summary bar */
+  .summary-bar { display: flex; gap: 20px; flex-wrap: wrap; padding: 16px; background: #f7f8fc; border-radius: 10px; margin-bottom: 16px; }
+  .summary-item { text-align: center; }
+  .summary-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; }
+  .summary-item .val { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+
+  /* Discount preview */
+  .discount-preview { margin-top: 16px; }
+  .discount-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 8px; }
+  .discount-card { background: #f7f8fc; border-radius: 6px; padding: 8px; text-align: center; font-size: 12px; }
+  .discount-card .tier { font-weight: 600; color: #555; }
+  .discount-card .amt { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-top: 2px; }
+
+  /* Modal for discount preview */
+  .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 700px; width: 90%; max-height: 80vh; overflow-y: auto; }
+  .modal h3 { margin-bottom: 12px; }
+  .modal .close-btn { float: right; background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+  .modal .close-btn:hover { color: #333; }
+
+  /* Select all row */
+  .select-all-row { display: flex; align-items: center; gap: 12px; padding: 10px; background: #fffbe6; border: 1px solid #ffe58f; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+
+  .hidden { display: none; }
+
+  /* Margin input in table */
+  .margin-input { width: 55px; padding: 4px 6px; border: 1.5px solid #ddd; border-radius: 4px; font-size: 12px; text-align: right; }
+  .margin-input:focus { outline: none; border-color: #4a6cf7; }
+
+  /* Quick Lookup */
+  .quick-lookup-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: 12px; align-items: end; margin-bottom: 14px; }
+  .quick-lookup-grid label { font-size: 12px; font-weight: 600; color: #555; display: flex; flex-direction: column; }
+  .quick-lookup-grid input { margin-top: 4px; padding: 9px; border: 1.5px solid #ddd; border-radius: 6px; font-size: 14px; }
+  .quick-lookup-grid input:focus { outline: none; border-color: #4a6cf7; box-shadow: 0 0 0 3px rgba(74,108,247,0.1); }
+
+  .ql-result-header { display: flex; align-items: center; gap: 20px; padding: 16px; background: linear-gradient(135deg, #f0fdf0 0%, #e6f7e6 100%); border-radius: 10px; margin-bottom: 14px; }
+  .ql-product-name { font-size: 15px; font-weight: 600; color: #333; flex: 1; }
+  .ql-big-price { text-align: center; }
+  .ql-big-price .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #888; }
+  .ql-big-price .val { font-size: 32px; font-weight: 800; color: #1a1a2e; }
+
+  .ql-breakdown { display: flex; gap: 16px; flex-wrap: wrap; padding: 12px 16px; background: #f7f8fc; border-radius: 8px; font-size: 13px; }
+  .ql-breakdown .ql-stat { display: flex; flex-direction: column; }
+  .ql-breakdown .ql-stat .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #999; }
+  .ql-breakdown .ql-stat .v { font-weight: 700; color: #1a1a2e; }
+
+  .ql-tier-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  .ql-tier-card { background: #f7f8fc; border-radius: 8px; padding: 10px; text-align: center; border: 1.5px solid #e8e8e8; transition: border-color 0.2s; }
+  .ql-tier-card:hover { border-color: #4a6cf7; }
+  .ql-tier-card .tier-name { font-size: 11px; font-weight: 600; color: #666; }
+  .ql-tier-card .tier-disc { font-size: 10px; color: #999; }
+  .ql-tier-card .tier-price { font-size: 18px; font-weight: 800; color: #1a1a2e; margin-top: 2px; }
+
+  @media (max-width: 768px) {
+    .vendor-config { grid-template-columns: 1fr 1fr; }
+    .summary-bar { gap: 10px; }
+    .quick-lookup-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Primizie Freight & Price Calculator</h1>
+  <p class="subtitle">Upload CSV from NetSuite, calculate freight-adjusted pricing, export updates for PZ Base Price + all discount tiers</p>
+
+  <!-- Quick Price Lookup -->
+  <div class="card" id="quickLookup">
+    <h2>Quick Price Lookup</h2>
+    <p style="font-size: 13px; color: #666; margin-bottom: 14px;">
+      Enter a product's info and get the PZ Base Price + all discount tier prices instantly.
+    </p>
+    <div class="quick-lookup-grid">
+      <label>
+        Product Name <span style="color:#999;font-weight:400;">(optional)</span>
+        <input type="text" id="qlName" placeholder="e.g. Chocolate Croissant 48pc">
+      </label>
+      <label>
+        Purchase Price ($) <span style="color:#ff4d4f;">*</span>
+        <input type="number" id="qlPurchasePrice" placeholder="72.00" min="0" step="0.01">
+      </label>
+      <label>
+        Cases Per Pallet <span style="color:#ff4d4f;">*</span>
+        <input type="number" id="qlCasesPallet" placeholder="120" min="1" step="1">
+      </label>
+      <label>
+        Pallet Cost ($)
+        <input type="number" id="qlPalletCost" value="550" min="0" step="10">
+      </label>
+      <label>
+        Target Margin %
+        <input type="number" id="qlMargin" value="30" min="0" max="90" step="1">
+      </label>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="quickPriceLookup()">Get Price</button>
+      <button class="btn btn-outline" onclick="clearQuickLookup()">Clear</button>
+    </div>
+    <div id="qlResults" class="hidden" style="margin-top: 18px;">
+      <div class="ql-result-header">
+        <div class="ql-product-name" id="qlResultName"></div>
+        <div class="ql-big-price">
+          <div class="label">PZ Base Price</div>
+          <div class="val" id="qlResultBase">$0.00</div>
+        </div>
+      </div>
+      <div class="ql-breakdown" id="qlBreakdown"></div>
+      <div style="margin-top: 14px;">
+        <div style="font-size: 12px; font-weight: 600; color: #555; margin-bottom: 8px;">All Discount Tier Prices</div>
+        <div class="ql-tier-grid" id="qlTierGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1: Upload -->
+  <div class="card" id="step1">
+    <h2>Bulk Update: Upload NetSuite Export</h2>
+    <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+      <strong>Drop your NetSuite export here</strong> — accepts the <code>.xls</code> file from <em>ACS Vendor Price Updates Results</em> (or any CSV with item data).<br>
+      The exported CSV will be in the exact format NetSuite needs to import prices back.
+    </p>
+    <div class="upload-area" id="uploadArea">
+      <svg width="48" height="48" fill="none" stroke="#aaa" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
+      <p>Drop your NetSuite .xls or .csv file here, or click to browse</p>
+      <input type="file" id="csvFile" accept=".csv,.txt,.xls,.xml">
+    </div>
+    <div style="font-size: 12px; color: #999; margin-top: 4px;">Or paste CSV text directly:</div>
+    <textarea id="csvPaste" rows="4" style="width:100%; margin-top:6px; padding:10px; border:1.5px solid #ddd; border-radius:8px; font-size:12px; font-family:monospace;" placeholder="Paste CSV rows here..."></textarea>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="loadCSV()">Load File</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Vendor Freight Config -->
+  <div class="card hidden" id="step2">
+    <h2>Step 2: Configure Freight & Margins by Vendor</h2>
+    <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
+      Set pallet cost, target margin, and how much to shift freight onto higher-value items.<br>
+      <strong>Value Weight:</strong> 0% = pure per-case split (pallet cost &divide; cases per pallet). 100% = expensive items absorb more freight, protecting cheaper items. 50% = balanced blend.
+    </p>
+    <div id="vendorConfigs"></div>
+    <div class="btn-row">
+      <button class="btn btn-success" onclick="calculateAll()">Calculate New Prices</button>
+    </div>
+  </div>
+
+  <!-- Step 3: Results -->
+  <div class="card hidden" id="step3">
+    <h2>Step 3: Review & Select Price Changes</h2>
+
+    <div class="summary-bar" id="summaryBar"></div>
+
+    <div class="vendor-tabs" id="vendorTabs"></div>
+
+    <div class="select-all-row">
+      <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+      <label for="selectAll"><strong>Select / Deselect All</strong> items in current vendor view</label>
+      <span style="margin-left:auto; font-size: 12px; color: #888;" id="selectedCount">0 selected</span>
+    </div>
+
+    <div class="table-wrapper" style="max-height: 600px; overflow-y: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th class="text-center">Update</th>
+            <th>Item #</th>
+            <th>Product Name</th>
+            <th class="text-right">Purchase Price</th>
+            <th class="text-right">Ti</th>
+            <th class="text-right">Hi</th>
+            <th class="text-right">Cases/Pallet</th>
+            <th class="text-right">Freight/Case</th>
+            <th class="text-right">Cost + Freight</th>
+            <th class="text-right">Target Margin %</th>
+            <th class="text-right">Current PZ Base</th>
+            <th class="text-right">New PZ Base</th>
+            <th class="text-right">Difference</th>
+            <th class="text-center">Tiers</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="btn-row" style="margin-top: 20px;">
+      <button class="btn btn-success" onclick="exportCSV()">Export Selected for NetSuite Import</button>
+      <button class="btn btn-warning" onclick="exportFullReport()">Export Full Report</button>
+      <button class="btn btn-outline" onclick="recalculate()">Recalculate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Discount Tier Modal -->
+<div class="modal-overlay" id="tierModal">
+  <div class="modal">
+    <button class="close-btn" onclick="closeTierModal()">&times;</button>
+    <h3 id="tierModalTitle">PZ Discount Tiers</h3>
+    <div id="tierModalBody"></div>
+  </div>
+</div>
+
+<script>
+// --- Quick Price Lookup ---
+function quickPriceLookup() {
+  const name = document.getElementById('qlName').value.trim() || 'Product';
+  const purchasePrice = parseFloat(document.getElementById('qlPurchasePrice').value);
+  const casesPallet = parseFloat(document.getElementById('qlCasesPallet').value);
+  const palletCost = parseFloat(document.getElementById('qlPalletCost').value) || 550;
+  const margin = parseFloat(document.getElementById('qlMargin').value) || 30;
+
+  if (!purchasePrice || purchasePrice <= 0) { alert('Please enter a valid purchase price.'); return; }
+  if (!casesPallet || casesPallet <= 0) { alert('Please enter cases per pallet.'); return; }
+
+  const freightPerCase = palletCost / casesPallet;
+  const costPlusFreight = purchasePrice + freightPerCase;
+  const marginMultiplier = 1 / (1 - (margin / 100));
+  const rawNewBase = costPlusFreight * marginMultiplier;
+  const newPZBase = Math.round(rawNewBase * 4) / 4; // round to nearest $0.25
+
+  // Show results
+  document.getElementById('qlResults').classList.remove('hidden');
+  document.getElementById('qlResultName').textContent = name;
+  document.getElementById('qlResultBase').textContent = '$' + newPZBase.toFixed(2);
+
+  // Breakdown stats
+  document.getElementById('qlBreakdown').innerHTML = `
+    <div class="ql-stat"><span class="lbl">Purchase Price</span><span class="v">$${purchasePrice.toFixed(2)}</span></div>
+    <div class="ql-stat"><span class="lbl">Freight / Case</span><span class="v">$${freightPerCase.toFixed(2)}</span></div>
+    <div class="ql-stat"><span class="lbl">Cost + Freight</span><span class="v">$${costPlusFreight.toFixed(2)}</span></div>
+    <div class="ql-stat"><span class="lbl">Margin</span><span class="v">${margin}%</span></div>
+    <div class="ql-stat"><span class="lbl">Cases / Pallet</span><span class="v">${casesPallet}</span></div>
+    <div class="ql-stat"><span class="lbl">Pallet Cost</span><span class="v">$${palletCost.toFixed(2)}</span></div>
+  `;
+
+  // Tier grid
+  const tiers = [
+    { name: 'PZ Base Price', pct: 0 },
+    { name: 'PZ 5% Discount', pct: 5 },
+    { name: 'PZ 10% Discount', pct: 10 },
+    { name: 'PZ 15% Discount', pct: 15 },
+    { name: 'PZ 20% Discount', pct: 20 },
+    { name: 'PZ 25% Discount', pct: 25 },
+    { name: 'PZ 30% Discount', pct: 30 },
+    { name: 'PZ 40% Discount', pct: 40 },
+    { name: 'PZ 50% Discount', pct: 50 },
+    { name: 'PZ 75% Discount', pct: 75 },
+    { name: 'PZ 100% Discount', pct: 100 },
+  ];
+
+  document.getElementById('qlTierGrid').innerHTML = tiers.map(t => {
+    const tierPrice = Math.round(newPZBase * (1 - t.pct / 100) * 4) / 4;
+    return `<div class="ql-tier-card">
+      <div class="tier-name">${t.name}</div>
+      <div class="tier-disc">${t.pct}% off</div>
+      <div class="tier-price">$${tierPrice.toFixed(2)}</div>
+    </div>`;
+  }).join('');
+}
+
+function clearQuickLookup() {
+  document.getElementById('qlName').value = '';
+  document.getElementById('qlPurchasePrice').value = '';
+  document.getElementById('qlCasesPallet').value = '';
+  document.getElementById('qlPalletCost').value = '550';
+  document.getElementById('qlMargin').value = '30';
+  document.getElementById('qlResults').classList.add('hidden');
+}
+
+const PZ_DISCOUNT_TIERS = [
+  { name: 'PZ Base Price', pct: 0 },
+  { name: 'PZ 5% Discount', pct: 5 },
+  { name: 'PZ 10% Discount', pct: 10 },
+  { name: 'PZ 15% Discount', pct: 15 },
+  { name: 'PZ 20% Discount', pct: 20 },
+  { name: 'PZ 25% Discount', pct: 25 },
+  { name: 'PZ 30% Discount', pct: 30 },
+  { name: 'PZ 40% Discount', pct: 40 },
+  { name: 'PZ 50% Discount', pct: 50 },
+  { name: 'PZ 75% Discount', pct: 75 },
+  { name: 'PZ 100% Discount', pct: 100 },
+];
+
+let allItems = [];
+let vendors = {};
+let currentVendor = 'ALL';
+let calculatedItems = [];
+
+// --- CSV Parsing ---
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
+    if (vals.length === 0 || (vals.length === 1 && vals[0].trim() === '')) continue;
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = (vals[idx] || '').trim(); });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i+1] === '"') { current += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { current += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(current); current = ''; }
+      else { current += ch; }
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function findColumn(row, ...candidates) {
+  const keys = Object.keys(row);
+  for (const c of candidates) {
+    const cl = c.toLowerCase();
+    const found = keys.find(k => k.includes(cl));
+    if (found) return found;
+  }
+  return null;
+}
+
+function loadCSV() {
+  const fileInput = document.getElementById('csvFile');
+  const pasteArea = document.getElementById('csvPaste');
+
+  if (pasteArea.value.trim()) {
+    processFileText(pasteArea.value);
+  } else if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = (e) => processFileText(e.target.result, file.name);
+    reader.readAsText(file);
+  } else {
+    alert('Please upload a file or paste data.');
+  }
+}
+
+function processFileText(text, filename) {
+  // Detect NetSuite XML SS (.xls XML format) by content
+  const trimmed = text.trim();
+  if (trimmed.startsWith('<?xml') || trimmed.includes('urn:schemas-microsoft-com:office:spreadsheet')) {
+    processNetSuiteXLS(text);
+  } else {
+    processCSVText(text);
+  }
+}
+
+function processNetSuiteXLS(xmlText) {
+  // Parse XML SS: extract Row > Cell > Data
+  const rowRegex = /<Row[^>]*>([\s\S]*?)<\/Row>/g;
+  const dataRegex = /<Data[^>]*>([\s\S]*?)<\/Data>/g;
+
+  const rawRows = [];
+  let m;
+  while ((m = rowRegex.exec(xmlText)) !== null) {
+    const rowContent = m[1];
+    const cells = [];
+    let dm;
+    dataRegex.lastIndex = 0;
+    while ((dm = dataRegex.exec(rowContent)) !== null) {
+      // Decode common XML entities
+      let val = dm[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+      cells.push(val);
+    }
+    rawRows.push(cells);
+  }
+
+  if (rawRows.length < 2) { alert('No data rows found in NetSuite export.'); return; }
+
+  // First row is headers
+  const headers = rawRows[0].map(h => h.trim());
+
+  // Build column map (lowercase -> index). Some NetSuite exports duplicate "Internal ID" — take the first.
+  const colMap = {};
+  headers.forEach((h, idx) => {
+    const key = h.toLowerCase();
+    if (!(key in colMap)) colMap[key] = idx;
+  });
+
+  function get(row, ...candidates) {
+    for (const c of candidates) {
+      const idx = colMap[c.toLowerCase()];
+      if (idx !== undefined && row[idx] !== undefined) return row[idx];
+    }
+    return '';
+  }
+
+  // Aggregate rows into items keyed by Internal ID (or Name if missing).
+  // The export contains one row per (item × price level × location), so we deduplicate
+  // and capture all price levels for each item.
+  const itemMap = {};
+  for (let i = 1; i < rawRows.length; i++) {
+    const row = rawRows[i];
+    if (row.length === 0) continue;
+    const internalId = get(row, 'internal id');
+    const name = get(row, 'name');
+    if (!internalId && !name) continue;
+    const key = internalId || name;
+    if (!itemMap[key]) {
+      itemMap[key] = {
+        internalId: internalId,
+        name: name,
+        mpn: get(row, 'mpn'),
+        description: get(row, 'description'),
+        purchaseDescription: get(row, 'purchase description'),
+        casesPerPallet: parseNum(get(row, 'case per pallet', 'cases per pallet')),
+        totalUnitsPZ: get(row, 'total units pz'),
+        unitOfMeasurePZ: get(row, 'unit of measure pz'),
+        purchasePrice: parseNum(get(row, 'purchase price')),
+        vendor: get(row, 'vendor group'),
+        weight: get(row, 'weight'),
+        priceLevels: {}
+      };
+    }
+    // Capture this row's price level
+    const priceLevel = get(row, 'price level');
+    const unitPrice = parseNum(get(row, 'unit price'));
+    if (priceLevel && unitPrice > 0) {
+      itemMap[key].priceLevels[priceLevel] = unitPrice;
+    }
+  }
+
+  // Convert to internal items array
+  allItems = Object.values(itemMap).map((it, idx) => ({
+    id: idx,
+    internalId: it.internalId,
+    itemNumber: it.name,
+    displayName: it.description || it.name,
+    mpn: it.mpn,
+    vendor: it.vendor || 'Unknown',
+    purchasePrice: it.purchasePrice,
+    currentPZBase: it.priceLevels['PZ Base Price'] || 0,
+    casesPerPallet: it.casesPerPallet,
+    tie: 0,
+    hi: 0,
+    selected: false,
+    marginPct: null,
+    existingPriceLevels: it.priceLevels
+  })).filter(item => item.itemNumber);
+
+  // Build vendor list
+  vendors = {};
+  allItems.forEach(item => {
+    if (!vendors[item.vendor]) {
+      vendors[item.vendor] = { name: item.vendor, palletCost: 550, marginPct: 30, valueWeight: 50, items: [] };
+    }
+    vendors[item.vendor].items.push(item);
+  });
+
+  renderVendorConfigs();
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+}
+
+function processCSVText(text) {
+  const rows = parseCSV(text);
+  if (rows.length === 0) { alert('No data found in CSV.'); return; }
+
+  const sample = rows[0];
+  const colItem = findColumn(sample, 'item number', 'item #', 'name', 'item', 'sku', 'item/number');
+  const colDisplay = findColumn(sample, 'display name', 'display', 'description', 'item name', 'product');
+  const colVendor = findColumn(sample, 'vendor group', 'vendor', 'supplier');
+  const colPurchase = findColumn(sample, 'purchase price', 'cost', 'purchase cost', 'unit cost', 'buy price');
+  const colPZBase = findColumn(sample, 'pz base price', 'primizie base price', 'pz base', 'base price');
+  const colCasesPallet = findColumn(sample, 'cases per pallet', 'pallet qty', 'cases/pallet', 'pallet cases', 'case_per_pallet');
+  const colTie = findColumn(sample, 'tie', 'ti');
+  const colHi = findColumn(sample, 'high', 'hi');
+  const colEffective = findColumn(sample, 'effective cases per pallet', 'effective cpp', 'eff cases');
+
+  if (!colItem && !colDisplay) { alert('Could not find an item name/number column. Please check your CSV headers.'); return; }
+
+  allItems = rows.map((r, idx) => {
+    const purchasePrice = parseNum(r[colPurchase]);
+    const pzBase = parseNum(r[colPZBase]);
+    const cpp = colCasesPallet ? (parseNum(r[colCasesPallet]) || 0) : 0;
+    const tie = colTie ? (parseNum(r[colTie]) || 0) : 0;
+    const hi = colHi ? (parseNum(r[colHi]) || 0) : 0;
+    const tihi = (tie > 0 && hi > 0) ? tie * hi : 0;
+    // Use effective column if present, else cpp, else tie*hi
+    const effectiveCpp = colEffective ? (parseNum(r[colEffective]) || 0) : 0;
+    const casesPerPallet = effectiveCpp > 0 ? effectiveCpp : (cpp > 0 ? cpp : (tihi > 0 ? tihi : 0));
+    return {
+      id: idx,
+      itemNumber: r[colItem] || '',
+      displayName: r[colDisplay] || r[colItem] || '',
+      vendor: r[colVendor] || 'Unknown',
+      purchasePrice: purchasePrice,
+      currentPZBase: pzBase,
+      casesPerPallet: casesPerPallet,
+      tie: tie,
+      hi: hi,
+      selected: false,
+      marginPct: null, // will be set from vendor default
+      raw: r
+    };
+  }).filter(item => item.itemNumber || item.displayName);
+
+  // Build vendor list
+  vendors = {};
+  allItems.forEach(item => {
+    if (!vendors[item.vendor]) {
+      vendors[item.vendor] = { name: item.vendor, palletCost: 550, marginPct: 30, valueWeight: 50, items: [] };
+    }
+    vendors[item.vendor].items.push(item);
+  });
+
+  renderVendorConfigs();
+  document.getElementById('step2').classList.remove('hidden');
+  document.getElementById('step2').scrollIntoView({ behavior: 'smooth' });
+}
+
+function parseNum(val) {
+  if (!val) return 0;
+  const cleaned = String(val).replace(/[$,\s]/g, '');
+  return parseFloat(cleaned) || 0;
+}
+
+// --- Vendor Config ---
+function renderVendorConfigs() {
+  const container = document.getElementById('vendorConfigs');
+  container.innerHTML = '';
+  Object.values(vendors).forEach(v => {
+    const vNameSafe = v.name.replace(/'/g, "\\'");
+    const div = document.createElement('div');
+    div.className = 'vendor-config';
+    div.innerHTML = `
+      <div>
+        <div class="vendor-name">${v.name}</div>
+        <div style="font-size:11px;color:#888;">${v.items.length} items</div>
+      </div>
+      <label>
+        Pallet Cost ($)
+        <input type="number" value="${v.palletCost}" min="0" step="10" onchange="vendors['${vNameSafe}'].palletCost=parseFloat(this.value)||0">
+      </label>
+      <label>
+        Target Margin %
+        <input type="number" value="${v.marginPct}" min="0" max="90" step="1" onchange="setVendorMargin('${vNameSafe}', this.value)">
+      </label>
+      <label>
+        Value Weight %
+        <input type="number" value="${v.valueWeight}" min="0" max="100" step="5" onchange="vendors['${vNameSafe}'].valueWeight=parseFloat(this.value)||0" title="0=pure per-case, 100=value-weighted">
+      </label>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function setVendorMargin(vendorName, val) {
+  const pct = parseFloat(val) || 30;
+  vendors[vendorName].marginPct = pct;
+  // Apply to all items for this vendor
+  allItems.forEach(item => {
+    if (item.vendor === vendorName) {
+      item.marginPct = pct;
+    }
+  });
+}
+
+// --- Calculation ---
+function roundToQuarter(val) {
+  return Math.round(val * 4) / 4;
+}
+
+function calculateAll() {
+  // First pass: compute per-vendor totals needed for value-weighting
+  const vendorTotals = {};
+  Object.keys(vendors).forEach(vName => {
+    const vItems = allItems.filter(i => i.vendor === vName);
+    // Total "value weight" = sum of (purchase price) for each item in this vendor
+    // Each item represents one "slot" — its purchase price determines its share of freight
+    const totalValue = vItems.reduce((sum, i) => sum + (i.purchasePrice || 0), 0);
+    const totalItems = vItems.length;
+    // Average freight per case across vendor (simple method)
+    const avgSimpleFreight = vItems.reduce((sum, i) => {
+      const cpp = i.casesPerPallet > 0 ? i.casesPerPallet : 48;
+      return sum + (vendors[vName].palletCost / cpp);
+    }, 0) / Math.max(totalItems, 1);
+    vendorTotals[vName] = { totalValue, totalItems, avgSimpleFreight };
+  });
+
+  calculatedItems = allItems.map(item => {
+    const v = vendors[item.vendor];
+    const vt = vendorTotals[item.vendor];
+    const casesPerPallet = item.casesPerPallet > 0 ? item.casesPerPallet : 48; // 48 = fallback for missing data
+    const valueWeight = (v.valueWeight || 0) / 100;
+
+    // Method 1: Simple — pallet cost / this item's cases per pallet
+    const simpleFreight = v.palletCost / casesPerPallet;
+
+    // Method 2: Value-weighted — items with higher purchase price absorb more freight
+    // Each item's share = its purchase price / total purchase prices across vendor
+    // Then multiply by the average simple freight * number of items to redistribute
+    let valueFreight = simpleFreight; // fallback
+    if (vt.totalValue > 0 && vt.totalItems > 0) {
+      const valueShare = (item.purchasePrice || 0) / vt.totalValue;
+      valueFreight = vt.avgSimpleFreight * vt.totalItems * valueShare;
+    }
+
+    // Blend the two methods
+    const freightPerCase = (1 - valueWeight) * simpleFreight + valueWeight * valueFreight;
+
+    const costPlusFreight = item.purchasePrice + freightPerCase;
+    const effectiveMargin = item.marginPct !== null ? item.marginPct : v.marginPct;
+    item.marginPct = effectiveMargin;
+    const marginMultiplier = 1 / (1 - (effectiveMargin / 100));
+    const rawNewBase = costPlusFreight * marginMultiplier;
+    const newPZBase = roundToQuarter(rawNewBase);
+    const diff = newPZBase - item.currentPZBase;
+
+    // Calculate all discount tiers
+    const tiers = PZ_DISCOUNT_TIERS.map(t => ({
+      name: t.name,
+      pct: t.pct,
+      currentPrice: item.currentPZBase > 0 ? roundToQuarter(item.currentPZBase * (1 - t.pct / 100)) : 0,
+      newPrice: roundToQuarter(newPZBase * (1 - t.pct / 100))
+    }));
+
+    return {
+      ...item,
+      tie: item.tie || 0,
+      hi: item.hi || 0,
+      casesPerPallet,
+      freightPerCase,
+      costPlusFreight,
+      newPZBase,
+      diff,
+      tiers,
+      selected: item.currentPZBase > 0 && Math.abs(diff) > 0.25 // auto-select items with meaningful price changes
+    };
+  });
+
+  renderResults();
+  document.getElementById('step3').classList.remove('hidden');
+  document.getElementById('step3').scrollIntoView({ behavior: 'smooth' });
+}
+
+function recalculate() {
+  // Re-read margin values from inputs
+  document.querySelectorAll('.margin-input').forEach(input => {
+    const idx = parseInt(input.dataset.idx);
+    if (!isNaN(idx) && allItems[idx]) {
+      allItems[idx].marginPct = parseFloat(input.value) || 30;
+    }
+  });
+  calculateAll();
+}
+
+// --- Rendering ---
+function renderResults() {
+  renderVendorTabs();
+  renderTable();
+  updateSummary();
+  updateSelectedCount();
+}
+
+function renderVendorTabs() {
+  const container = document.getElementById('vendorTabs');
+  container.innerHTML = '';
+
+  const allTab = document.createElement('div');
+  allTab.className = 'vendor-tab' + (currentVendor === 'ALL' ? ' active' : '');
+  allTab.innerHTML = `All<span class="count">${calculatedItems.length}</span>`;
+  allTab.onclick = () => { currentVendor = 'ALL'; renderResults(); };
+  container.appendChild(allTab);
+
+  Object.keys(vendors).forEach(vName => {
+    const count = calculatedItems.filter(i => i.vendor === vName).length;
+    const tab = document.createElement('div');
+    tab.className = 'vendor-tab' + (currentVendor === vName ? ' active' : '');
+    tab.innerHTML = `${vName}<span class="count">${count}</span>`;
+    tab.onclick = () => { currentVendor = vName; renderResults(); };
+    container.appendChild(tab);
+  });
+}
+
+function getFilteredItems() {
+  if (currentVendor === 'ALL') return calculatedItems;
+  return calculatedItems.filter(i => i.vendor === currentVendor);
+}
+
+function renderTable() {
+  const tbody = document.getElementById('resultsBody');
+  tbody.innerHTML = '';
+  const items = getFilteredItems();
+
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+    tr.className = item.selected ? 'selected' : '';
+
+    let diffClass = 'price-same';
+    let diffText = '$0.00';
+    if (item.diff > 0.01) { diffClass = 'price-up'; diffText = '+$' + item.diff.toFixed(2); }
+    else if (item.diff < -0.01) { diffClass = 'price-down'; diffText = '-$' + Math.abs(item.diff).toFixed(2); }
+
+    const currentBaseDisplay = item.currentPZBase > 0 ? '$' + item.currentPZBase.toFixed(2) : '<span style="color:#fa8c16">Not Set</span>';
+
+    tr.innerHTML = `
+      <td class="text-center"><input type="checkbox" ${item.selected ? 'checked' : ''} onchange="toggleItem(${item.id}, this.checked)"></td>
+      <td><strong>${item.itemNumber}</strong></td>
+      <td>${item.displayName}</td>
+      <td class="text-right">$${item.purchasePrice.toFixed(2)}</td>
+      <td class="text-right">${item.tie || '-'}</td>
+      <td class="text-right">${item.hi || '-'}</td>
+      <td class="text-right">${item.casesPerPallet || '<span style="color:#ff4d4f">??</span>'}</td>
+      <td class="text-right">$${item.freightPerCase.toFixed(2)}</td>
+      <td class="text-right"><strong>$${item.costPlusFreight.toFixed(2)}</strong></td>
+      <td class="text-right"><input type="number" class="margin-input" data-idx="${item.id}" value="${item.marginPct}" min="0" max="90" step="1" onchange="updateMargin(${item.id}, this.value)">%</td>
+      <td class="text-right old-price">${currentBaseDisplay}</td>
+      <td class="text-right new-price">$${item.newPZBase.toFixed(2)}</td>
+      <td class="text-right ${diffClass}">${diffText}</td>
+      <td class="text-center"><button class="btn btn-outline" style="padding:4px 10px;font-size:11px;" onclick="showTiers(${item.id})">View</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateSummary() {
+  const items = getFilteredItems();
+  const selected = items.filter(i => i.selected);
+  const totalItems = items.length;
+  const priceIncreases = items.filter(i => i.diff > 0.01).length;
+  const priceDecreases = items.filter(i => i.diff < -0.01).length;
+  const avgDiff = items.length > 0 ? items.reduce((s, i) => s + i.diff, 0) / items.length : 0;
+
+  document.getElementById('summaryBar').innerHTML = `
+    <div class="summary-item"><div class="label">Total Items</div><div class="val">${totalItems}</div></div>
+    <div class="summary-item"><div class="label">Selected</div><div class="val">${selected.length}</div></div>
+    <div class="summary-item"><div class="label">Price Increases</div><div class="val" style="color:#52c41a">${priceIncreases}</div></div>
+    <div class="summary-item"><div class="label">Price Decreases</div><div class="val" style="color:#ff4d4f">${priceDecreases}</div></div>
+    <div class="summary-item"><div class="label">Avg Change</div><div class="val">${avgDiff >= 0 ? '+' : ''}$${avgDiff.toFixed(2)}</div></div>
+  `;
+}
+
+function updateSelectedCount() {
+  const items = getFilteredItems();
+  const selected = items.filter(i => i.selected).length;
+  document.getElementById('selectedCount').textContent = selected + ' selected';
+  document.getElementById('selectAll').checked = items.length > 0 && selected === items.length;
+}
+
+// --- Interactions ---
+function toggleItem(id, checked) {
+  const item = calculatedItems.find(i => i.id === id);
+  if (item) item.selected = checked;
+  renderResults();
+}
+
+function toggleSelectAll() {
+  const checked = document.getElementById('selectAll').checked;
+  const items = getFilteredItems();
+  items.forEach(i => i.selected = checked);
+  renderResults();
+}
+
+function updateMargin(id, val) {
+  const item = allItems.find(i => i.id === id);
+  if (item) item.marginPct = parseFloat(val) || 30;
+  // Recalc just this item — use its existing freightPerCase (already value-weighted from full calc)
+  const ci = calculatedItems.find(i => i.id === id);
+  if (ci) {
+    const costPlusFreight = ci.purchasePrice + ci.freightPerCase;
+    const marginMultiplier = 1 / (1 - (item.marginPct / 100));
+    const rawNewBase = costPlusFreight * marginMultiplier;
+    const newPZBase = roundToQuarter(rawNewBase);
+    ci.newPZBase = newPZBase;
+    ci.diff = newPZBase - ci.currentPZBase;
+    ci.costPlusFreight = costPlusFreight;
+    ci.marginPct = item.marginPct;
+    ci.tiers = PZ_DISCOUNT_TIERS.map(t => ({
+      name: t.name,
+      pct: t.pct,
+      currentPrice: ci.currentPZBase > 0 ? roundToQuarter(ci.currentPZBase * (1 - t.pct / 100)) : 0,
+      newPrice: roundToQuarter(newPZBase * (1 - t.pct / 100))
+    }));
+  }
+  renderResults();
+}
+
+function showTiers(id) {
+  const item = calculatedItems.find(i => i.id === id);
+  if (!item) return;
+
+  document.getElementById('tierModalTitle').textContent = `${item.itemNumber} - ${item.displayName}`;
+
+  let html = `<p style="font-size:13px;color:#666;margin-bottom:12px;">New PZ Base Price: <strong>$${item.newPZBase.toFixed(2)}</strong> (Current: $${item.currentPZBase.toFixed(2)})</p>`;
+  html += '<table style="width:100%;font-size:13px;"><thead><tr><th>Price Level</th><th class="text-right">Discount</th><th class="text-right">Current Price</th><th class="text-right">New Price</th><th class="text-right">Change</th></tr></thead><tbody>';
+
+  item.tiers.forEach(t => {
+    const diff = t.newPrice - t.currentPrice;
+    let diffClass = 'price-same';
+    let diffText = '-';
+    if (t.currentPrice > 0) {
+      if (diff > 0.01) { diffClass = 'price-up'; diffText = '+$' + diff.toFixed(2); }
+      else if (diff < -0.01) { diffClass = 'price-down'; diffText = '-$' + Math.abs(diff).toFixed(2); }
+      else { diffText = '$0.00'; }
+    }
+    html += `<tr>
+      <td><strong>${t.name}</strong></td>
+      <td class="text-right">${t.pct}%</td>
+      <td class="text-right old-price">${t.currentPrice > 0 ? '$' + t.currentPrice.toFixed(2) : '-'}</td>
+      <td class="text-right new-price">$${t.newPrice.toFixed(2)}</td>
+      <td class="text-right ${diffClass}">${diffText}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('tierModalBody').innerHTML = html;
+  document.getElementById('tierModal').classList.add('show');
+}
+
+function closeTierModal() {
+  document.getElementById('tierModal').classList.remove('show');
+}
+
+// Close modal on overlay click
+document.getElementById('tierModal').addEventListener('click', function(e) {
+  if (e.target === this) closeTierModal();
+});
+
+// --- Export ---
+// Escape a value for CSV: wrap in quotes and escape inner quotes.
+function csvEscape(val) {
+  if (val === undefined || val === null) return '';
+  const s = String(val);
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+function exportCSV() {
+  const selected = calculatedItems.filter(i => i.selected);
+  if (selected.length === 0) { alert('No items selected. Check the boxes for items you want to update.'); return; }
+
+  // EXACT NetSuite import format:
+  // Internal ID, Type, Name, MPN, Description, Purchase Price, Price Level,
+  // PZ Base Price, PZ 5% Discount, PZ 10% Discount, PZ 15% Discount, PZ 20% Discount,
+  // PZ 25% Discount, PZ 30% Discount, PZ 40% Discount, PZ 50% Discount, PZ 75% Discount, PZ 100% Discount
+  const headers = [
+    'Internal ID', 'Type', 'Name', 'MPN', 'Description', 'Purchase Price', 'Price Level',
+    'PZ Base Price', 'PZ 5% Discount', 'PZ 10% Discount', 'PZ 15% Discount', 'PZ 20% Discount',
+    'PZ 25% Discount', 'PZ 30% Discount', 'PZ 40% Discount', 'PZ 50% Discount', 'PZ 75% Discount', 'PZ 100% Discount'
+  ];
+
+  const tierByPct = {};
+  selected.forEach(item => {
+    item.tiers.forEach(t => { /* noop - tiers calculated already */ });
+  });
+
+  let csvContent = headers.join(',') + '\n';
+
+  selected.forEach(item => {
+    // Map tiers by pct for fast lookup
+    const tierMap = {};
+    item.tiers.forEach(t => { tierMap[t.pct] = t.newPrice; });
+
+    const row = [
+      csvEscape(item.internalId || ''),
+      csvEscape('Inventory Item'),
+      csvEscape(item.itemNumber),
+      csvEscape(item.mpn || ''),
+      csvEscape(item.displayName),
+      (item.purchasePrice || 0).toFixed(2),
+      csvEscape('PZ Base Price'),
+      (tierMap[0] || 0).toFixed(2),
+      (tierMap[5] || 0).toFixed(2),
+      (tierMap[10] || 0).toFixed(2),
+      (tierMap[15] || 0).toFixed(2),
+      (tierMap[20] || 0).toFixed(2),
+      (tierMap[25] || 0).toFixed(2),
+      (tierMap[30] || 0).toFixed(2),
+      (tierMap[40] || 0).toFixed(2),
+      (tierMap[50] || 0).toFixed(2),
+      (tierMap[75] || 0).toFixed(2),
+      (tierMap[100] || 0).toFixed(2)
+    ];
+    csvContent += row.join(',') + '\n';
+  });
+
+  downloadFile(csvContent, 'pz_price_update_' + new Date().toISOString().slice(0,10) + '.csv', 'text/csv');
+}
+
+function exportFullReport() {
+  let headers = ['Item Number', 'Display Name', 'Vendor', 'Purchase Price', 'Tie', 'Hi', 'Cases Per Pallet', 'Freight/Case', 'Cost+Freight', 'Margin %', 'Current PZ Base', 'New PZ Base', 'Difference', 'Selected'];
+  PZ_DISCOUNT_TIERS.forEach(t => { headers.push('New ' + t.name); });
+
+  let csvContent = headers.join(',') + '\n';
+
+  calculatedItems.forEach(item => {
+    let row = [
+      '"' + item.itemNumber + '"',
+      '"' + item.displayName + '"',
+      '"' + item.vendor + '"',
+      item.purchasePrice.toFixed(2),
+      item.tie || '',
+      item.hi || '',
+      item.casesPerPallet,
+      item.freightPerCase.toFixed(2),
+      item.costPlusFreight.toFixed(2),
+      item.marginPct,
+      item.currentPZBase.toFixed(2),
+      item.newPZBase.toFixed(2),
+      item.diff.toFixed(2),
+      item.selected ? 'Yes' : 'No'
+    ];
+    item.tiers.forEach(t => { row.push(t.newPrice.toFixed(2)); });
+    csvContent += row.join(',') + '\n';
+  });
+
+  downloadFile(csvContent, 'pz_full_report_' + new Date().toISOString().slice(0,10) + '.csv', 'text/csv');
+}
+
+function downloadFile(content, filename, type) {
+  const blob = new Blob([content], { type: type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// --- File upload handlers ---
+const uploadArea = document.getElementById('uploadArea');
+const csvFileInput = document.getElementById('csvFile');
+
+uploadArea.addEventListener('click', () => csvFileInput.click());
+uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadArea.classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) {
+    csvFileInput.files = e.dataTransfer.files;
+    loadCSV();
+  }
+});
+</script>
+
+</body>
+</html>

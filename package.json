@@ -1,0 +1,59 @@
+{
+  "name": "primizie-freight-calculator",
+  "version": "1.0.0",
+  "description": "Primizie Freight & Price Calculator",
+  "main": "main.js",
+  "author": "Primizie",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:all": "electron-builder --mac --win",
+    "release": "electron-builder --mac --win --publish always"
+  },
+  "build": {
+    "appId": "com.primizie.freight-calculator",
+    "productName": "Primizie Freight Calculator",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "freight-calculator.html",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Jgambino92",
+      "repo": "freight-calculator"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jgambino92/freight-calculator.git"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  }
+}
