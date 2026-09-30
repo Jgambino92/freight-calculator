@@ -127,6 +127,7 @@
     .quick-lookup-grid { grid-template-columns: 1fr 1fr; }
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -186,13 +187,13 @@
   <div class="card" id="step1">
     <h2>Bulk Update: Upload NetSuite Export</h2>
     <p style="font-size: 13px; color: #666; margin-bottom: 12px;">
-      <strong>Drop your NetSuite export here</strong> — accepts the <code>.xls</code> file from <em>ACS Vendor Price Updates Results</em> (or any CSV with item data).<br>
+      <strong>Drop your NetSuite export here</strong> — accepts the <code>.xls</code>, <code>.xlsx</code>, or <code>.csv</code> file from <em>ACS Vendor Price Updates Results</em>.<br>
       The exported CSV will be in the exact format NetSuite needs to import prices back.
     </p>
     <div class="upload-area" id="uploadArea">
       <svg width="48" height="48" fill="none" stroke="#aaa" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 17v2a1 1 0 001 1h14a1 1 0 001-1v-2"/></svg>
-      <p>Drop your NetSuite .xls or .csv file here, or click to browse</p>
-      <input type="file" id="csvFile" accept=".csv,.txt,.xls,.xml">
+      <p>Drop your NetSuite .xls, .xlsx, or .csv file here, or click to browse</p>
+      <input type="file" id="csvFile" accept=".csv,.txt,.xls,.xlsx,.xml">
     </div>
     <div style="font-size: 12px; color: #999; margin-top: 4px;">Or paste CSV text directly:</div>
     <textarea id="csvPaste" rows="4" style="width:100%; margin-top:6px; padding:10px; border:1.5px solid #ddd; border-radius:8px; font-size:12px; font-family:monospace;" placeholder="Paste CSV rows here..."></textarea>
@@ -409,11 +410,37 @@ function loadCSV() {
     processFileText(pasteArea.value);
   } else if (fileInput.files.length > 0) {
     const file = fileInput.files[0];
+    const nameLower = file.name.toLowerCase();
+    const isXlsx = nameLower.endsWith('.xlsx') || nameLower.endsWith('.xlsm') || nameLower.endsWith('.xlsb');
     const reader = new FileReader();
-    reader.onload = (e) => processFileText(e.target.result, file.name);
-    reader.readAsText(file);
+    if (isXlsx) {
+      reader.onload = (e) => processXLSXBinary(e.target.result, file.name);
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = (e) => processFileText(e.target.result, file.name);
+      reader.readAsText(file);
+    }
   } else {
     alert('Please upload a file or paste data.');
+  }
+}
+
+function processXLSXBinary(arrayBuffer, filename) {
+  if (typeof XLSX === 'undefined') {
+    alert('Excel parser (SheetJS) failed to load. Check your internet connection and reload the page.');
+    return;
+  }
+  try {
+    const wb = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+    // Use the first worksheet
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    // Convert to array of arrays (headers + rows), preserving strings
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+    if (rows.length < 2) { alert('No data rows found in Excel file.'); return; }
+    processTabularRows(rows);
+  } catch (err) {
+    alert('Failed to parse Excel file: ' + err.message);
   }
 }
 
@@ -428,7 +455,7 @@ function processFileText(text, filename) {
 }
 
 function processNetSuiteXLS(xmlText) {
-  // Parse XML SS: extract Row > Cell > Data
+  // Parse XML SS: extract Row > Cell > Data into a 2D array [row][cell]
   const rowRegex = /<Row[^>]*>([\s\S]*?)<\/Row>/g;
   const dataRegex = /<Data[^>]*>([\s\S]*?)<\/Data>/g;
 
@@ -440,19 +467,23 @@ function processNetSuiteXLS(xmlText) {
     let dm;
     dataRegex.lastIndex = 0;
     while ((dm = dataRegex.exec(rowContent)) !== null) {
-      // Decode common XML entities
       let val = dm[1].replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
       cells.push(val);
     }
     rawRows.push(cells);
   }
 
-  if (rawRows.length < 2) { alert('No data rows found in NetSuite export.'); return; }
+  processTabularRows(rawRows);
+}
 
-  // First row is headers
-  const headers = rawRows[0].map(h => h.trim());
+// Shared row-processor for both XML .xls and binary .xlsx. Expects a 2D array
+// where row 0 is headers. Aggregates one row per (item × price level × location)
+// export into unique items with all their price levels captured.
+function processTabularRows(rawRows) {
+  if (!rawRows || rawRows.length < 2) { alert('No data rows found in the file.'); return; }
 
-  // Build column map (lowercase -> index). Some NetSuite exports duplicate "Internal ID" — take the first.
+  const headers = rawRows[0].map(h => String(h || '').trim());
+
   const colMap = {};
   headers.forEach((h, idx) => {
     const key = h.toLowerCase();
@@ -462,18 +493,15 @@ function processNetSuiteXLS(xmlText) {
   function get(row, ...candidates) {
     for (const c of candidates) {
       const idx = colMap[c.toLowerCase()];
-      if (idx !== undefined && row[idx] !== undefined) return row[idx];
+      if (idx !== undefined && row[idx] !== undefined) return String(row[idx] || '');
     }
     return '';
   }
 
-  // Aggregate rows into items keyed by Internal ID (or Name if missing).
-  // The export contains one row per (item × price level × location), so we deduplicate
-  // and capture all price levels for each item.
   const itemMap = {};
   for (let i = 1; i < rawRows.length; i++) {
     const row = rawRows[i];
-    if (row.length === 0) continue;
+    if (!row || row.length === 0) continue;
     const internalId = get(row, 'internal id');
     const name = get(row, 'name');
     if (!internalId && !name) continue;
@@ -494,7 +522,6 @@ function processNetSuiteXLS(xmlText) {
         priceLevels: {}
       };
     }
-    // Capture this row's price level
     const priceLevel = get(row, 'price level');
     const unitPrice = parseNum(get(row, 'unit price'));
     if (priceLevel && unitPrice > 0) {
@@ -502,7 +529,6 @@ function processNetSuiteXLS(xmlText) {
     }
   }
 
-  // Convert to internal items array
   allItems = Object.values(itemMap).map((it, idx) => ({
     id: idx,
     internalId: it.internalId,
@@ -520,7 +546,6 @@ function processNetSuiteXLS(xmlText) {
     existingPriceLevels: it.priceLevels
   })).filter(item => item.itemNumber);
 
-  // Build vendor list
   vendors = {};
   allItems.forEach(item => {
     if (!vendors[item.vendor]) {
@@ -528,6 +553,11 @@ function processNetSuiteXLS(xmlText) {
     }
     vendors[item.vendor].items.push(item);
   });
+
+  if (allItems.length === 0) {
+    alert('Loaded the file but found no items with a Name column. Make sure this is the ACS Vendor Price Updates Results export.');
+    return;
+  }
 
   renderVendorConfigs();
   document.getElementById('step2').classList.remove('hidden');
